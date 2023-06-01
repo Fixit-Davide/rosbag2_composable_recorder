@@ -35,42 +35,49 @@ static std::string get_time_stamp()
 
 ComposableRecorder::ComposableRecorder(const rclcpp::NodeOptions & options)
 : rosbag2_transport::Recorder(
-    std::make_shared<rosbag2_cpp::Writer>(), rosbag2_storage::StorageOptions(),
-    rosbag2_transport::RecordOptions(), "recorder",
-    rclcpp::NodeOptions(options).start_parameter_event_publisher(false))
+    std::make_shared<rosbag2_cpp::Writer>(),
+    rosbag2_storage::StorageOptions(),
+    rosbag2_transport::RecordOptions(),
+    "rosbag2_recorder",
+    options)
 {
-  std::vector<std::string> topics =
-    declare_parameter<std::vector<std::string>>("topics", std::vector<std::string>());
-  for (const auto & topic : topics) {
-    RCLCPP_INFO_STREAM(get_logger(), "recording topic: " << topic);
-  }
   // set storage options
-  rosbag2_storage::StorageOptions & sopt = storage_options_;
-  sopt.storage_id = declare_parameter<std::string>("storage_id", "sqlite3");
-  sopt.max_cache_size = declare_parameter<int>("max_cache_size", 100 * 1024 * 1024);
-  const std::string bag_name = declare_parameter<std::string>("bag_name", "");
+  storage_options_.storage_id = declare_parameter<std::string>("storage_id", "sqlite3");
+  storage_options_.max_cache_size = declare_parameter<int>("max_cache_size", 100 * 1024 * 1024);
+  const std::string bag_name = declare_parameter<std::string>("bag_name", "rosbag2_") + get_time_stamp();
   if (!bag_name.empty()) {
-    sopt.uri = bag_name;
+    storage_options_.uri = bag_name;
   } else {
-    sopt.uri = declare_parameter<std::string>("bag_prefix", "rosbag2_") + get_time_stamp();
+    storage_options_.uri = declare_parameter<std::string>("bag_prefix", "rosbag2_") + get_time_stamp();
   }
 
   // set recorder options
-  rosbag2_transport::RecordOptions & ropt = record_options_;
-  ropt.all = declare_parameter<bool>("record_all", false);
-  ropt.is_discovery_disabled = declare_parameter<bool>("disable_discovery", false);
-  ropt.rmw_serialization_format = declare_parameter<std::string>("serialization_format", "cdr");
-  ropt.topic_polling_interval = std::chrono::milliseconds(100);
-  ropt.topics.insert(ropt.topics.end(), topics.begin(), topics.end());
+  record_options_.all = declare_parameter<bool>("record_all", false);
+  record_options_.is_discovery_disabled = declare_parameter<bool>("disable_discovery", true);
+  record_options_.rmw_serialization_format = declare_parameter<std::string>("serialization_format", "cdr");
+  record_options_.topic_polling_interval = std::chrono::milliseconds(100);
+  record_options_.topics = declare_parameter<std::vector<std::string>>("topics", std::vector<std::string>());
+  record_options_.compression_mode = declare_parameter<std::string>("compression_mode", "file");
+  record_options_.compression_format = declare_parameter<std::string>("compression_format", "zstd");
 
-  stop_discovery_ = ropt.is_discovery_disabled;
+  for (auto & topic : record_options_.topics) {
+    RCLCPP_INFO_STREAM(get_logger(), "recording topic: " << topic);
+    topic = rclcpp::expand_topic_or_service_name(topic, get_name(), get_namespace(), false);
+  }
+
+  stop_discovery_ = record_options_.is_discovery_disabled;
+
   if (declare_parameter<bool>("start_recording_immediately", false)) {
     record();
   } else {
-    service_ = create_service<std_srvs::srv::Trigger>(
+    start_srv_ = create_service<std_srvs::srv::Trigger>(
       "start_recording",
       std::bind(
         &ComposableRecorder::startRecording, this, std::placeholders::_1, std::placeholders::_2));
+    stop_srv_ = create_service<std_srvs::srv::Trigger>(
+      "stop_recording",
+      std::bind(
+        &ComposableRecorder::stopRecording, this, std::placeholders::_1, std::placeholders::_2));
   }
 }
 
@@ -99,7 +106,33 @@ bool ComposableRecorder::startRecording(
   return (true);
 }
 
-ComposableRecorder::~ComposableRecorder() {}
+bool ComposableRecorder::stopRecording(
+  const std::shared_ptr<std_srvs::srv::Trigger::Request> req,
+  std::shared_ptr<std_srvs::srv::Trigger::Response> res)
+{
+  (void)req;
+  res->success = false;
+  if (isRecording_) {
+    RCLCPP_WARN(get_logger(), "Stopping the recording!");
+    try {
+      stop();
+      isRecording_ = false;
+      RCLCPP_INFO(get_logger(), "stopping recording...");
+      res->success = true;
+      res->message = "stopped recording!";
+    } catch (const std::runtime_error & e) {
+      RCLCPP_WARN(get_logger(), "cannot toggle stop-record!");
+      res->message = "runtime error occurred: " + std::string(e.what());
+    }
+  } else {
+    RCLCPP_INFO(get_logger(), "Not recording...");
+    res->message = "not recording!";
+  }
+  return (true);
+}
+
+ComposableRecorder::~ComposableRecorder() {
+}
 }  // namespace rosbag2_composable_recorder
 
 RCLCPP_COMPONENTS_REGISTER_NODE(rosbag2_composable_recorder::ComposableRecorder)
