@@ -42,6 +42,7 @@ private:
   rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr stop_srv_;
   
   bool isRecording_{false};
+  bool mcap_;
 };
 
 }  // namespace rosbag2_composable_recorder

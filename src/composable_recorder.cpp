@@ -42,8 +42,16 @@ ComposableRecorder::ComposableRecorder(const rclcpp::NodeOptions & options)
     options)
 {
   // set storage options
+  mcap_ = declare_parameter<bool>("mcap.use_mcap", false);
+
+  if (mcap_) {
+    storage_options_.storage_preset_profile = declare_parameter<std::string>("mcap.storage_preset_profile","zstd_fast");
+    //storage_options_.storage_config_uri = declare_parameter<std::string>("mcap.storage_config_uri","/path_to_storage_config_file");
+  }
+
   storage_options_.storage_id = declare_parameter<std::string>("storage_id", "sqlite3");
   storage_options_.max_cache_size = declare_parameter<int>("max_cache_size", 100 * 1024 * 1024);
+
   const std::string bag_name = declare_parameter<std::string>("bag_name", "rosbag2_") + get_time_stamp();
   if (!bag_name.empty()) {
     storage_options_.uri = bag_name;
@@ -59,6 +67,8 @@ ComposableRecorder::ComposableRecorder(const rclcpp::NodeOptions & options)
   record_options_.topics = declare_parameter<std::vector<std::string>>("topics", std::vector<std::string>());
   record_options_.compression_mode = declare_parameter<std::string>("compression_mode", "file");
   record_options_.compression_format = declare_parameter<std::string>("compression_format", "zstd");
+  //record_options_.compression_queue_size = declare_parameter<>("compression_queue_size", );
+  //record_options_.compression_threads = declare_parameter<>("compression_threads", );
 
   for (auto & topic : record_options_.topics) {
     RCLCPP_INFO_STREAM(get_logger(), "recording topic: " << topic);
