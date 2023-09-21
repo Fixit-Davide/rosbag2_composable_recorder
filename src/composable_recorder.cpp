@@ -45,37 +45,37 @@ ComposableRecorder::ComposableRecorder(const rclcpp::NodeOptions & options)
   mcap_ = declare_parameter<bool>("mcap.use_mcap", false);
 
   if (mcap_) {
-    storage_options_.storage_preset_profile = declare_parameter<std::string>("mcap.storage_preset_profile","zstd_fast");
-    //storage_options_.storage_config_uri = declare_parameter<std::string>("mcap.storage_config_uri","/path_to_storage_config_file");
+    get_storage_options().storage_preset_profile = declare_parameter<std::string>("mcap.storage_preset_profile","zstd_fast");
+    //get_storage_options().storage_config_uri = declare_parameter<std::string>("mcap.storage_config_uri","/path_to_storage_config_file");
   }
 
-  storage_options_.storage_id = declare_parameter<std::string>("storage_id", "sqlite3");
-  storage_options_.max_cache_size = declare_parameter<int>("max_cache_size", 100 * 1024 * 1024);
+  get_storage_options().storage_id = declare_parameter<std::string>("storage_id", "sqlite3");
+  get_storage_options().max_cache_size = declare_parameter<int>("max_cache_size", 100 * 1024 * 1024);
 
   const std::string bag_name = declare_parameter<std::string>("bag_name", "rosbag2_") + get_time_stamp();
   if (!bag_name.empty()) {
-    storage_options_.uri = bag_name;
+    get_storage_options().uri = bag_name;
   } else {
-    storage_options_.uri = declare_parameter<std::string>("bag_prefix", "rosbag2_") + get_time_stamp();
+    get_storage_options().uri = declare_parameter<std::string>("bag_prefix", "rosbag2_") + get_time_stamp();
   }
 
   // set recorder options
-  record_options_.all = declare_parameter<bool>("record_all", false);
-  record_options_.is_discovery_disabled = declare_parameter<bool>("disable_discovery", true);
-  record_options_.rmw_serialization_format = declare_parameter<std::string>("serialization_format", "cdr");
-  record_options_.topic_polling_interval = std::chrono::milliseconds(100);
-  record_options_.topics = declare_parameter<std::vector<std::string>>("topics", std::vector<std::string>());
-  record_options_.compression_mode = declare_parameter<std::string>("compression_mode", "file");
-  record_options_.compression_format = declare_parameter<std::string>("compression_format", "zstd");
-  //record_options_.compression_queue_size = declare_parameter<>("compression_queue_size", );
-  //record_options_.compression_threads = declare_parameter<>("compression_threads", );
+  get_record_options().all = declare_parameter<bool>("record_all", false);
+  get_record_options().is_discovery_disabled = declare_parameter<bool>("disable_discovery", true);
+  get_record_options().rmw_serialization_format = declare_parameter<std::string>("serialization_format", "cdr");
+  get_record_options().topic_polling_interval = std::chrono::milliseconds(100);
+  get_record_options().topics = declare_parameter<std::vector<std::string>>("topics", std::vector<std::string>());
+  get_record_options().compression_mode = declare_parameter<std::string>("compression_mode", "file");
+  get_record_options().compression_format = declare_parameter<std::string>("compression_format", "zstd");
+  //get_record_options().compression_queue_size = declare_parameter<>("compression_queue_size", );
+  //get_record_options().compression_threads = declare_parameter<>("compression_threads", );
 
-  for (auto & topic : record_options_.topics) {
+  for (auto & topic : get_record_options().topics) {
     RCLCPP_INFO_STREAM(get_logger(), "recording topic: " << topic);
     topic = rclcpp::expand_topic_or_service_name(topic, get_name(), get_namespace(), false);
   }
 
-  stop_discovery_ = record_options_.is_discovery_disabled;
+  if (get_record_options().is_discovery_disabled) stop_discovery();
 
   if (declare_parameter<bool>("start_recording_immediately", false)) {
     record();
