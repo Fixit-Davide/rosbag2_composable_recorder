@@ -1,5 +1,9 @@
 # rosbag2 composable recorder
 
+> [!WARNING]
+> Since [this commit](https://github.com/ros2/rosbag2/commit/0fcc839d4363855fe4a5c8693b5e16dfd64b9b34) rosbag2 can be natively composed.\
+> If you have Iron or Hunble, you still need this package instead.
+
 A composable recorder node for ROS2 to allow recording rosbags without
 inter process communication.
 
